@@ -28,6 +28,7 @@ Activate the virtual environment:
 ```bash
 pip install -r requirements.txt
 ```
+OR 
 ```
 pip install pandas numpy xgboost scikit-learn flask
 ```
