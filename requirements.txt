@@ -10,7 +10,7 @@ astunparse==1.6.3
 async-timeout==4.0.3
 attrs==23.2.0
 beautifulsoup4==4.7.1
-billiard==3.6.4.0
+billiard==4.2.1
 bleach==5.0.1
 blinker==1.9.0
 boto3==1.34.116
@@ -91,6 +91,7 @@ optree==0.14.0
 packaging==24.2
 pandas==2.2.3
 pillow==10.3.0
+pipdeptree==2.25.0
 prompt_toolkit==3.0.45
 proto-plus==1.24.0
 protobuf==5.27.2
