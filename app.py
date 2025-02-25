@@ -18,9 +18,17 @@ def predict_congestion():
         data = request.json
         merchant_name = data["merchant_name"]
         hour = pd.to_datetime(data["initiated_time"]).hour
+        lane_filter = data.get("lane")
 
         # Fetch unique lanes, direction, and vehicle_class_code for the given merchant
-        filtered_data = df[df["merchant_name"] == merchant_name][["direction", "lane", "vehicle_class_code"]].drop_duplicates()
+        filtered_data = df[
+            (df["merchant_name"] == merchant_name) & (
+                pd.to_datetime(df["initiated_time"]).dt.hour == hour
+            )
+            ][["direction", "lane", "vehicle_class_code"]].drop_duplicates()
+
+        if lane_filter:
+            filtered_data = filtered_data[filtered_data["lane"] == lane_filter]
 
         if filtered_data.empty:
             return jsonify({"error": "No data found for the given merchant name"}), 404
