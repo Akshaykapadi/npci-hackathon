@@ -1,52 +1,76 @@
+from flask import Flask, request, jsonify
+import joblib
 import pandas as pd
-import numpy as np
-import xgboost as xgb
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder
-from sklearn.metrics import accuracy_score
-import joblib  # For saving the model
 
-# Load dataset
+# Load trained model and encoders
+model = joblib.load("traffic_model.pkl")
+label_encoders = joblib.load("label_encoders.pkl")
+
+# Load dataset to fetch required details dynamically
 df = pd.read_csv("bangalore_toll_data.csv")
 
-# Convert timestamp to hour of day
-df["hour"] = pd.to_datetime(df["initiated_time"]).dt.hour
+app = Flask(__name__)
 
-# Define congestion levels based on response time
-def classify_congestion(time_sec):
-    if time_sec < 30:
-        return 0  # Low
-    elif 30 <= time_sec <= 60:
-        return 1  # Medium
-    else:
-        return 2  # High
+@app.route("/predict", methods=["POST"])
+def predict_congestion():
+    try:
+        # Get JSON request
+        data = request.json
+        merchant_name = data["merchant_name"]
+        hour = pd.to_datetime(data["initiated_time"]).hour
 
-df["congestion_level"] = df["inn_rr_time_sec"].apply(classify_congestion)
+        # Fetch unique lanes, direction, and vehicle_class_code for the given merchant
+        filtered_data = df[df["merchant_name"] == merchant_name][["direction", "lane", "vehicle_class_code"]].drop_duplicates()
 
-# Select relevant features
-features = ["lane", "vehicle_class_code", "hour"]
-target = "congestion_level"
+        if filtered_data.empty:
+            return jsonify({"error": "No data found for the given merchant name"}), 404
 
-# Convert categorical data into numeric (Label Encoding)
-label_encoders = {}
-for col in ["lane", "vehicle_class_code"]:
-    le = LabelEncoder()
-    df[col] = le.fit_transform(df[col])
-    label_encoders[col] = le  # Save encoders for later use
+         # Find the most frequent vehicle_class_code per lane
+        top_vehicle_per_lane = (
+            filtered_data.groupby(["lane", "vehicle_class_code"]) # Step 1: Group by lane and vehicle class
+            .size()  # Step 2: Count occurrences in each group
+            .reset_index(name="count") # Step 3: Convert to DataFrame and name the count column
+            .sort_values(["lane", "count"], ascending=[True, False]) # Step 4: Sort by lane and then by count (descending)
+            .drop_duplicates(subset=["lane"], keep="first")  # Step 5: Keep only the most frequent vehicle class per lane
+        )
 
-# Split dataset
-X_train, X_test, y_train, y_test = train_test_split(df[features], df[target], test_size=0.2, random_state=42)
+        predictions = []
 
-# Train XGBoost Model
-model = xgb.XGBClassifier(n_estimators=200, learning_rate=0.05, max_depth=6, random_state=42)
-model.fit(X_train, y_train)
+        for _, row in top_vehicle_per_lane.iterrows():
+            lane = row["lane"]
+            vehicle_class = row["vehicle_class_code"]
 
-# Evaluate model
-y_pred = model.predict(X_test)
-accuracy = accuracy_score(y_test, y_pred)
-print(f"Model Accuracy: {accuracy:.2f}")
+            # Get corresponding direction
+            direction = filtered_data[filtered_data["lane"] == lane]["direction"].iloc[0]
 
-# Save model and encoders
-joblib.dump(model, "traffic_model.pkl")
-joblib.dump(label_encoders, "label_encoders.pkl")
-print("Model saved as traffic_model.pkl")
+            # Encode categorical variables
+            merchant_encoded = label_encoders["merchant_name"].transform([merchant_name])[0]
+            direction_encoded = label_encoders["direction"].transform([direction])[0]
+            lane_encoded = label_encoders["lane"].transform([lane])[0]
+            vehicle_class_encoded = label_encoders["vehicle_class_code"].transform([vehicle_class])[0]
+
+            # Prepare input for model
+            input_data = pd.DataFrame(
+                [[merchant_encoded, direction_encoded, lane_encoded, vehicle_class_encoded, hour]],
+                columns=["merchant_name", "direction", "lane", "vehicle_class_code", "hour"]
+            )
+
+            # Predict congestion level
+            prediction = model.predict(input_data)[0]
+            congestion_labels = {0: "Low", 1: "Medium", 2: "High"}
+            result = congestion_labels[prediction]
+
+            predictions.append({
+                "direction": direction,
+                "lane": lane,
+                "vehicle_class_code": vehicle_class,
+                "congestion_level": result
+            })
+
+        return jsonify({"merchant_name": merchant_name, "predictions": predictions})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+if __name__ == "__main__":
+    app.run(debug=True)
