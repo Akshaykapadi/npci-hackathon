@@ -1,6 +1,6 @@
 # Traffic Congestion Prediction API
 
-This project provides a machine learning model to predict congestion levels at toll booths based on merchant name, time of day, direction, and lane information.
+This project provides a machine learning model to predict congestion levels at toll booths based on merchant name, time of day.
 
 ## Setup Instructions
 
