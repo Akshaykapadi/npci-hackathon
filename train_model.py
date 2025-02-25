@@ -14,9 +14,9 @@ df["hour"] = pd.to_datetime(df["initiated_time"]).dt.hour
 
 # Define congestion levels based on response time
 def classify_congestion(time_sec):
-    if time_sec < 30:
+    if time_sec < 120:
         return 0  # Low
-    elif 30 <= time_sec <= 150:
+    elif 121 <= time_sec <= 200:
         return 1  # Medium
     else:
         return 2  # High
