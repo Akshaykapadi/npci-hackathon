@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 import joblib
 import pandas as pd
+from flask_cors import CORS
 
 # Load trained model and encoders
 model = joblib.load("traffic_model.pkl")
@@ -10,10 +11,12 @@ label_encoders = joblib.load("label_encoders.pkl")
 df = pd.read_csv("bangalore_toll_data.csv")
 
 app = Flask(__name__)
+CORS(app)
 
 @app.route("/predict", methods=["POST"])
 def predict_congestion():
     try:
+        print("coming")
         # Get JSON request
         data = request.json
         merchant_name = data["merchant_name"]
